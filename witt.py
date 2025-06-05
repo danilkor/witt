@@ -18,19 +18,17 @@ import untislib
 
 
 # Handling args
-print('That tool allows you to search where a teacher is right now')
-print('Before using this, you must open browser and login into webuntis')
-
 arg_parser = argparse.ArgumentParser(description='Teacher Finder using data from Webuntis', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 # arguments
 arg_parser.add_argument('-c', '--clear-cache', help='Clears current cache', action='store_true')
+arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
+arg_parser.add_argument('-l', '--list-teachers', action='store_true', help='See a list of available teachers')
 arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str,
                         choices=[browser.value for browser in Browser],
                         default=Browser.FIREFOX.value)
-arg_parser.add_argument('name', help='The name of the teacher to search for')
-arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
 arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true. Enter like YYYYMMDD. Notice, that cache will be cleared if this date is not found')
+arg_parser.add_argument('-n', '--name', help='The name of the teacher to search for')
 config = vars(arg_parser.parse_args())
 # ==================================================== BEFORE START ========================================
 # clear cache if in config
@@ -72,7 +70,6 @@ if time.time() - classen['timestamp'] > cache_live_time:
     classen['timestamp'] = time.time()
     cache_updated = True
     print(f'Loaded {len(classen['data'])} classes successfully')
-
 # LOAD TIMETABLES
 
 def download_timetables():
@@ -137,14 +134,31 @@ if not date_exists:
         pickle.dump(timetables, f)
     parse_periods_and_uobjects()
 
-#Parse all teachers
-searched_teacher = None
+# Print a list of teachers
+teacher_list = []
+teachers_names = []
 for uo in all_uobjects:
-    if uo.type == 2:
-        if uo.name.lower() == config['name'].lower():
-            searched_teacher = uo
-            print(f'Found {uo.name}')
-            break
+    if uo.type == 2 and uo.name not in teachers_names:
+        teacher_list.append(uo)
+        teachers_names.append(uo.name)
+if config['list_teachers']:
+    print('Available teachers:')
+    for teacher in teacher_list:
+        print(teacher.name, end=', ')
+    print()
+
+if not config['name']:
+    print('No name given')
+    exit(0)
+
+
+#Find the looked teacher
+searched_teacher = None
+for uo in teacher_list:
+    if uo.name.lower() == config['name'].lower():
+        searched_teacher = uo
+        print(f'Found {uo.name}')
+        break
 if not searched_teacher:
     print('No teacher found')
     exit(1)
