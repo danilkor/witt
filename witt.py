@@ -171,7 +171,7 @@ for period in all_periods:
             found_periods.append(period)
 
 # Sort them
-sorted_periods = sorted(found_periods, key=lambda period: period.date)
+sorted_periods = sorted(found_periods, key=lambda period: (period.date, period.start_time))
 
 if config['timetable']:
     print(f'TIMETABLE FOR THE WEEK {get_week_range(str(all_periods[0].date))}')
