@@ -10,6 +10,15 @@ from utils import *
 from enum import Enum
 
 server = 'melete.webuntis.com' # e.g., klio.webuntis.com
+
+# that is just to look better
+type_bindings = {
+        1: 'Class',
+        2: 'Teacher',
+        3: 'Subject',
+        4: 'Room'
+}
+
 # Define the Browser Enum
 class Browser(Enum):
     CHROME = "chrome"
@@ -22,7 +31,6 @@ class Browser(Enum):
     LYNX = "lynx"
     W3M = "w3m"
     ARC = "arc"
-
 class UntisObject:
     def __init__(self, type: int, id: int, name, longname = ''):
         self.type = type
@@ -31,7 +39,8 @@ class UntisObject:
         self.longname = longname if longname is not None else ''
 
     def __str__(self):
-        return f'{self.type}-{self.id}: {self.name}, {self.longname}'
+        type_str = type_bindings.get(self.type, 'Unknown')
+        return f'{type_str}: {self.name}, {self.longname}'
 class Period:
     def __init__(self, date, start_time, end_time):
         self.date = date
@@ -122,3 +131,8 @@ def get_periods(timetable) -> list:
             period.add_element(new_element)
         periods.append(period)
     return periods
+def find_object_by_id(uobjects: list, id: int) -> UntisObject | None:
+    for object in uobjects:
+        if object.id == id:
+            return object
+    return None

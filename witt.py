@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import datetime
 import time
 import argparse
@@ -9,6 +10,8 @@ import pickle
 from utils import *
 from untislib import *
 from enum import Enum
+import os
+
 
 # SOME CLASSES
 
@@ -25,9 +28,15 @@ arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str
                         choices=[browser.value for browser in Browser],
                         default=Browser.FIREFOX.value)
 arg_parser.add_argument('name', help='The name of the teacher to search for')
+arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
+arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true')
 config = vars(arg_parser.parse_args())
-print(config)
-# exit(0)
+
+# ==================================================== BEFORE START ========================================
+# clear cache if in config
+if config['clear_cache']:
+    os.remove('saved_timetables.pkl')
+    os.remove('saved_classen.pkl')
 
 
 # ==================================================== MAIN PART ===========================================
@@ -80,10 +89,6 @@ except FileNotFoundError:
     print('No timetable saved. Loading...')
     download_timetables()
     print(f'Loaded {len(timetables['data'])} timetables successfully')
-
-
-
-
 if time.time() - timetables['timestamp'] > cache_live_time:
     print('Cache expired')
     download_timetables()
@@ -97,17 +102,39 @@ if cache_updated:
         pickle.dump(timetables, f)
 
 # PARSE DATA
-teachers = []
+
+# parse data
+all_periods = []
+all_uobjects = []
 for current_timetable in timetables['data'].values():
     periods = get_periods(current_timetable)
+    for period in periods:
+        all_periods.append(period)
     untis_objects = get_untis_objects(current_timetable)
-    for uo in untis_objects:
-        print(uo)
-        if uo.type == 2:
-            teachers.append(uo.name)
-    # for p in periods:
-    #     print(p)
-    # for o in untis_objects:
-    #     print(o)
+    for untis_object in untis_objects:
+        all_uobjects.append(untis_object)
 
-print(list(set(teachers)))
+#Parse all teachers
+searched_teacher = None
+for uo in all_uobjects:
+    if uo.type == 2:
+        if uo.name.lower() == config['name'].lower():
+            searched_teacher = uo
+            print(f'Found {uo.name}')
+
+#Find all periods for this teacher
+found_periods = []
+for period in all_periods:
+    for element in period.objects:
+        if element['type'] == 2 and element['id'] == searched_teacher.id:
+            found_periods.append(period)
+# Sort them
+sorted_periods = sorted(found_periods, key=lambda period: period.date)
+
+if config['timetable']:
+    print('========================================')
+    for period in sorted_periods:
+        print(format_datetime_range(str(period)))
+        for object in period.objects:
+            print(find_object_by_id(all_uobjects, object['id']))
+        print('======================================')
