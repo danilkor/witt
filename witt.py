@@ -11,6 +11,7 @@ from utils import *
 from untislib import *
 from enum import Enum
 import os
+import untislib
 
 
 # SOME CLASSES
@@ -29,15 +30,19 @@ arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str
                         default=Browser.FIREFOX.value)
 arg_parser.add_argument('name', help='The name of the teacher to search for')
 arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
-arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true')
+arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true. Enter like YYYYMMDD. Notice, that cache will be cleared if this date is not found')
 config = vars(arg_parser.parse_args())
-
 # ==================================================== BEFORE START ========================================
 # clear cache if in config
 if config['clear_cache']:
     os.remove('saved_timetables.pkl')
     os.remove('saved_classen.pkl')
 
+if config['date']:
+    if not validate_date(config['date']):
+        print('Date must be in format YYYYMMDD')
+        exit(1)
+    untislib.date_to_look = f"{config['date'][:4]}-{config['date'][4:6]}-{config['date'][6:8]}"
 
 # ==================================================== MAIN PART ===========================================
 cache_live_time = 3600
@@ -106,13 +111,31 @@ if cache_updated:
 # parse data
 all_periods = []
 all_uobjects = []
-for current_timetable in timetables['data'].values():
-    periods = get_periods(current_timetable)
-    for period in periods:
-        all_periods.append(period)
-    untis_objects = get_untis_objects(current_timetable)
-    for untis_object in untis_objects:
-        all_uobjects.append(untis_object)
+def parse_periods_and_uobjects():
+    global all_periods, all_uobjects
+    for current_timetable in timetables['data'].values():
+        periods = get_periods(current_timetable)
+        for period in periods:
+            all_periods.append(period)
+        untis_objects = get_untis_objects(current_timetable)
+        for untis_object in untis_objects:
+            all_uobjects.append(untis_object)
+parse_periods_and_uobjects()
+# look if the date is in the periods, otherwise load other timetable
+date_that_must_be_here = date_to_look.replace('-', '')[:8]
+if config['date']:
+    date_that_must_be_here = config['date']
+date_exists = False
+for period in all_periods:
+    if str(period.date) == date_that_must_be_here:
+        date_exists = True
+        break
+if not date_exists:
+    print('Date was not found in cache, downloading new one')
+    download_timetables()
+    with open('saved_timetables.pkl', 'wb') as f:\
+        pickle.dump(timetables, f)
+    parse_periods_and_uobjects()
 
 #Parse all teachers
 searched_teacher = None
@@ -121,6 +144,10 @@ for uo in all_uobjects:
         if uo.name.lower() == config['name'].lower():
             searched_teacher = uo
             print(f'Found {uo.name}')
+            break
+if not searched_teacher:
+    print('No teacher found')
+    exit(1)
 
 #Find all periods for this teacher
 found_periods = []
@@ -128,13 +155,30 @@ for period in all_periods:
     for element in period.objects:
         if element['type'] == 2 and element['id'] == searched_teacher.id:
             found_periods.append(period)
+
 # Sort them
 sorted_periods = sorted(found_periods, key=lambda period: period.date)
 
 if config['timetable']:
-    print('========================================')
+    print(f'TIMETABLE FOR THE WEEK {get_week_range(str(all_periods[0].date))}')
+    print('======================================')
     for period in sorted_periods:
+        if config['date'] and config['date'] != str(period.date):
+            continue
         print(format_datetime_range(str(period)))
         for object in period.objects:
             print(find_object_by_id(all_uobjects, object['id']))
         print('======================================')
+if not config['timetable']:
+    print('The teacher is now: ')
+    found = False
+    for period in sorted_periods:
+        if str(period.date) == date_that_must_be_here and is_time_in_lesson_range(period.start_time, period.end_time):
+            print('=============== HERE =================')
+            print(format_datetime_range(str(period)))
+            for object in period.objects:
+                print(find_object_by_id(all_uobjects, object['id']))
+            found = True
+            print('======================================')
+    if not found:
+        print('Having a free time!')

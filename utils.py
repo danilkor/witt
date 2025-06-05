@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 # Print iterations progress
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
     """
@@ -23,25 +24,86 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
 # Example
 # datetime_str = "20250602-1400-1450"
 def format_datetime_range(datetime_str):
-    # Split the input string into date and time parts
     date_str, start_time, end_time = datetime_str.split('-')
+    date_obj = datetime.strptime(date_str, "%Y%m%d")
+    start_time_obj = datetime.strptime(start_time, "%H%M")
+    end_time_obj = datetime.strptime(end_time, "%H%M")
+    formatted_date = date_obj.strftime("%B %d, %Y")
+    formatted_start = start_time_obj.strftime("%I:%M %p")
+    formatted_end = end_time_obj.strftime("%I:%M %p")
+    day_of_week = date_obj.strftime("%A")
+    return f"{formatted_date}, {formatted_start} - {formatted_end} == {day_of_week}"
 
-    # Parse date
-    year, month, day = date_str[:4], date_str[4:6], date_str[6:8]
-    formatted_date = f"{month}/{day}/{year}"
 
-    # Parse times
-    start_hour, start_min = start_time[:2], start_time[2:4]
-    end_hour, end_min = end_time[:2], end_time[2:4]
+def validate_date(date_str):
+    """
+    Validate if date_str is in YYYYMMDD format and represents a valid date.
 
-    # Convert to 12-hour format with AM/PM
-    start_hour = int(start_hour)
-    end_hour = int(end_hour)
-    start_period = "AM" if start_hour < 12 else "PM"
-    end_period = "AM" if end_hour < 12 else "PM"
-    start_hour = start_hour % 12 or 12  # Convert 0 or 12 to 12 for 12-hour format
-    end_hour = end_hour % 12 or 12
-    formatted_start = f"{start_hour}:{start_min} {start_period}"
-    formatted_end = f"{end_hour}:{end_min} {end_period}"
+    Args:
+        date_str (str): Date string to validate (e.g., '20250602')
 
-    return f"{formatted_date}, {formatted_start} - {formatted_end}"
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    # Check if string is 8 digits
+    if not (isinstance(date_str, str) and len(date_str) == 8 and date_str.isdigit()):
+        return False
+
+    try:
+        # Parse year, month, day
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+
+        # Basic range checks
+        if not (1 <= month <= 12):
+            return False
+        if not (1 <= day <= 31):
+            return False
+        if not (1000 <= year <= 9999):  # Reasonable year range
+            return False
+
+        # Validate date using datetime
+        from datetime import datetime
+        datetime(year, month, day)
+        return True
+    except ValueError:
+        # Invalid date (e.g., Feb 30, April 31)
+        return False
+
+
+def get_week_range(date_str):
+    # Parse input date
+    date_obj = datetime.strptime(date_str, "%Y%m%d")
+
+    # Find Monday (start of week)
+    start_of_week = date_obj - timedelta(days=date_obj.weekday())
+
+    # Find Sunday (end of week)
+    end_of_week = start_of_week + timedelta(days=4)
+
+    # Format dates
+    start_formatted = start_of_week.strftime("%d. %B %Y").lstrip("0")
+    end_formatted = end_of_week.strftime("%d. %B %Y").lstrip("0")
+
+    return f"{start_formatted} - {end_formatted}"
+
+
+def is_time_in_lesson_range(start_time, end_time):
+    # Get current time in CEST
+    current_time = datetime.now()
+
+    # Convert current time to minutes since midnight
+    current_time_minutes = current_time.hour * 60 + current_time.minute
+
+    # Convert start and end times to minutes since midnight
+    start_hour = start_time // 100
+    start_minute = start_time % 100
+    end_hour = end_time // 100
+    end_minute = end_time % 100
+
+    start_minutes = start_hour * 60 + start_minute
+    end_minutes = end_hour * 60 + end_minute
+
+    # Check if current time is within the lesson time range
+    return start_minutes <= current_time_minutes <= end_minutes

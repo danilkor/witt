@@ -10,7 +10,7 @@ from utils import *
 from enum import Enum
 
 server = 'melete.webuntis.com' # e.g., klio.webuntis.com
-
+date_to_look = datetime.today().strftime('%Y-%m-%d')
 # that is just to look better
 type_bindings = {
         1: 'Class',
@@ -100,7 +100,7 @@ def webuntis_jsonrpc_do_request(method, params):
 def get_classes():
     return webuntis_jsonrpc_do_request('getKlassen', {})
 def get_timetable_for_week(class_id: int):
-    url = f'https://melete.webuntis.com/WebUntis/api/public/timetable/weekly/data?elementType=1&elementId={class_id}&date={datetime.date.today()}'
+    url = f'https://melete.webuntis.com/WebUntis/api/public/timetable/weekly/data?elementType=1&elementId={class_id}&date={date_to_look}'
     try:
         response = requests.get(url, cookies=cookies)
         response.raise_for_status()
