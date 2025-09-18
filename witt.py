@@ -23,6 +23,7 @@ arg_parser = argparse.ArgumentParser(description='Teacher Finder using data from
 # arguments
 arg_parser.add_argument('-c', '--clear-cache', help='Clears current cache', action='store_true')
 arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
+arg_parser.add_argument('-r', '--rooms', action='store_true', help='Show the room too (only works with --timetable)')
 arg_parser.add_argument('-l', '--list-teachers', action='store_true', help='See a list of available teachers')
 arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str,
                         choices=[browser.value for browser in Browser],
@@ -57,7 +58,7 @@ try:
         classen = pickle.load(f)
     print(f'Cached {len(classen['data'])} classes found and loaded')
 
-except FileNotFoundError:
+except Exception:
     print('No classes saved. Loading...')
     classen['data'] = get_classes()
     classen['timestamp'] = time.time()
@@ -87,7 +88,7 @@ try:
     with open('saved_timetables.pkl', 'rb') as f:
         timetables = pickle.load(f)
     print(f'Cached {len(timetables['data'])} timetables found and loaded')
-except FileNotFoundError:
+except Exception:
     print('No timetable saved. Loading...')
     download_timetables()
     print(f'Loaded {len(timetables['data'])} timetables successfully')
@@ -174,25 +175,79 @@ for period in all_periods:
 sorted_periods = sorted(found_periods, key=lambda period: (period.date, period.start_time))
 
 if config['timetable']:
-    print(f'TIMETABLE FOR THE WEEK {get_week_range(str(all_periods[0].date))}')
-    print('======================================')
+    from tabulate import tabulate
+    print(f"Timetable for {config['name']} ({get_week_range(str(all_periods[0].date))})")
+
+    time_slots = sorted(list(set((p.start_time, p.end_time) for p in sorted_periods)))
+
+    days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    timetable = {f'{str(start)[:-2]}:{str(start)[-2:]} - {str(end)[:-2]}:{str(end)[-2:]}': {day: "" for day in days_of_week} for start, end in time_slots}
+
     for period in sorted_periods:
         if config['date'] and config['date'] != str(period.date):
             continue
-        print(format_datetime_range(str(period)))
-        for object in period.objects:
-            print(find_object_by_id(all_uobjects, object['id']))
-        print('======================================')
+
+        date_str = str(period.date)
+        day_of_week = datetime.strptime(date_str, "%Y%m%d").strftime("%A")
+        time_str = f'{str(period.start_time)[:-2]}:{str(period.start_time)[-2:]} - {str(period.end_time)[:-2]}:{str(period.end_time)[-2:]}'
+
+        subject = ''
+        room = ''
+        class_name = ''
+
+        for obj in period.objects:
+            u_obj = find_object_by_id(all_uobjects, obj['id'])
+            if u_obj:
+                if u_obj.type == 3:
+                    subject = u_obj.name
+                elif u_obj.type == 4:
+                    room = u_obj.name
+                elif u_obj.type == 1:
+                    class_name = u_obj.name
+        
+        if config['rooms']:
+            timetable[time_str][day_of_week] = f"{subject}" + f"\n{room}" + f"\n{class_name}"
+        else:
+            timetable[time_str][day_of_week] = f"{subject}" + f"\n{class_name}"
+
+
+    headers = ["Time"] + days_of_week
+    table_data = []
+    for time_slot, days in timetable.items():
+        row = [time_slot] + [days[day] for day in days_of_week]
+        table_data.append(row)
+
+    print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
 if not config['timetable']:
     print('The teacher is now: ')
     found = False
     for period in sorted_periods:
         if str(period.date) == date_that_must_be_here and is_time_in_lesson_range(period.start_time, period.end_time):
-            print('=============== HERE =================')
-            print(format_datetime_range(str(period)))
-            for object in period.objects:
-                print(find_object_by_id(all_uobjects, object['id']))
+            from tabulate import tabulate
+            headers = ["Day", "Time", "Subject", "Room", "Class"]
+            table_data = []
+            date_str = str(period.date)
+            day_of_week = datetime.strptime(date_str, "%Y%m%d").strftime("%A")
+            time_str = f'{str(period.start_time)[:-2]}:{str(period.start_time)[-2:]} - {str(period.end_time)[:-2]}:{str(period.end_time)[-2:]}'
+            
+            subject = ''
+            room = ''
+            class_name = ''
+            
+            for obj in period.objects:
+                u_obj = find_object_by_id(all_uobjects, obj['id'])
+                if u_obj:
+                    if u_obj.type == 3:
+                        subject = u_obj.name
+                    elif u_obj.type == 4:
+                        room = u_obj.name
+                    elif u_obj.type == 1:
+                        class_name = u_obj.name
+            
+            table_data.append([day_of_week, time_str, subject, room, class_name])
+
+            print(tabulate(table_data, headers=headers, tablefmt="grid"))
             found = True
-            print('======================================')
     if not found:
         print('Having a free time!')
