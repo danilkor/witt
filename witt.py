@@ -32,7 +32,7 @@ filenames = SimpleNamespace(
 arg_parser = argparse.ArgumentParser(description='Teacher Finder using data from Webuntis', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 # arguments
-arg_parser.add_argument('-c', '--clear-cache', help='Clears current cache', action='store_true')
+arg_parser.add_argument('-C', '--clear-cache', help='Clears current cache', action='store_true')
 arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
 arg_parser.add_argument('-r', '--rooms', action='store_true', help='Show the room too (only works with --timetable)')
 arg_parser.add_argument('-l', '--list-teachers', action='store_true', help='See a list of available teachers (Only short form)')
@@ -42,6 +42,7 @@ arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str
                         default=Browser.FIREFOX.value)
 arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true. Enter like YYYYMMDD. Notice, that cache will be cleared if this date is not found')
 arg_parser.add_argument('-n', '--name', help='The name of the teacher to search for')
+arg_parser.add_argument('-cn', '--classname', help='The name of the class to search for')
 arg_parser.add_argument('-s', '--super-speed', action='store_true', help='Use this if you want to try fast load. May cause problems')
 config = vars(arg_parser.parse_args())
 # ==================================================== BEFORE START ========================================
@@ -210,28 +211,49 @@ if config['list_teachers'] and config['full']:
 
 
 # Check if name is given
-if not config['name']:
-    print('No name given')
+if not config['name'] and not config['classname']:
+    print('No name or classname given')
+    exit(0)
+if config['name'] and config['classname']:
+    print('You can only search for a teacher or a class, not both at the same time')
     exit(0)
 
 
-#Find the looked teacher
-searched_teacher = None
-for uo in teacher_list:
-    if uo.name.lower() == config['name'].lower():
-        searched_teacher = uo
-        print(f'Found {uo.name}')
-        break
-if not searched_teacher:
-    print('No teacher found')
-    exit(1)
-
-#Find all periods for this teacher
+#Find the looked teacher or class
 found_periods = []
-for period in all_periods:
-    for element in period.objects:
-        if element['type'] == 2 and element['id'] == searched_teacher.id:
-            found_periods.append(period)
+if config['name']:
+    #Find the looked teacher
+    searched_teacher = None
+    for uo in teacher_list:
+        if uo.name.lower() == config['name'].lower():
+            searched_teacher = uo
+            print(f'Found {uo.name}')
+            break
+    if not searched_teacher:
+        print('No teacher found')
+        exit(1)
+
+    #Find all periods for this teacher
+    for period in all_periods:
+        for element in period.objects:
+            if element['type'] == 2 and element['id'] == searched_teacher.id:
+                found_periods.append(period)
+elif config['classname']:
+    #Find the looked class
+    searched_class = None
+    for uo in all_uobjects:
+        if uo.type == 1 and uo.name.lower() == config['classname'].lower():
+            searched_class = uo
+            print(f'Found {uo.name}')
+            break
+    if not searched_class:
+        print('No class found')
+        exit(1)
+    
+    for period in all_periods:
+        for element in period.objects:
+            if element['type'] == 1 and element['id'] == searched_class.id:
+                found_periods.append(period)
 
 # Sort them
 sorted_periods = sorted(found_periods, key=lambda period: (period.date, period.start_time))
@@ -240,7 +262,10 @@ sorted_periods = sorted(found_periods, key=lambda period: (period.date, period.s
 # Print timetable
 if config['timetable']:
     from tabulate import tabulate
-    print(f"Timetable for {config['name']} ({get_week_range(str(all_periods[0].date))})")
+    if config['name']:
+        print(f"Timetable for {config['name']} ({get_week_range(str(all_periods[0].date))})")
+    else:
+        print(f"Timetable for {config['classname']} ({get_week_range(str(all_periods[0].date))})")
 
     time_slots = sorted(list(set((p.start_time, p.end_time) for p in sorted_periods)))
 
@@ -258,6 +283,7 @@ if config['timetable']:
         subject = ''
         room = ''
         class_name = ''
+        teacher_name = ''
 
         for obj in period.objects:
             u_obj = find_object_by_id(all_uobjects, obj['id'])
@@ -268,11 +294,19 @@ if config['timetable']:
                     room = u_obj.name
                 elif u_obj.type == 1:
                     class_name = u_obj.name
+                elif u_obj.type == 2:
+                    teacher_name = u_obj.name
         
-        if config['rooms']:
-            timetable[time_str][day_of_week] = f"{subject}" + f"\n{room}" + f"\n{class_name}"
+        if config['name']:
+            if config['rooms']:
+                timetable[time_str][day_of_week] = f"{subject}" + f"\n{room}" + f"\n{class_name}"
+            else:
+                timetable[time_str][day_of_week] = f"{subject}" + f"\n{class_name}"
         else:
-            timetable[time_str][day_of_week] = f"{subject}" + f"\n{class_name}"
+            if config['rooms']:
+                timetable[time_str][day_of_week] = f"{subject}" + f"\n{room}" + f"\n{teacher_name}"
+            else:
+                timetable[time_str][day_of_week] = f"{subject}" + f"\n{teacher_name}"
 
 
     headers = ["Time"] + days_of_week
@@ -285,12 +319,18 @@ if config['timetable']:
 
 # print current class
 if not config['timetable']:
-    print('The teacher is now: ')
+    if config['name']:
+        print('The teacher is now: ')
+    else:
+        print('The class is now: ')
     found = False
     for period in sorted_periods:
         if str(period.date) == date_that_must_be_here and is_time_in_lesson_range(period.start_time, period.end_time):
             from tabulate import tabulate
-            headers = ["Day", "Time", "Subject", "Room", "Class"]
+            if config['name']:
+                headers = ["Day", "Time", "Subject", "Room", "Class"]
+            else:
+                headers = ["Day", "Time", "Subject", "Room", "Teacher"]
             table_data = []
             date_str = str(period.date)
             day_of_week = datetime.strptime(date_str, "%Y%m%d").strftime("%A")
@@ -299,6 +339,7 @@ if not config['timetable']:
             subject = ''
             room = ''
             class_name = ''
+            teacher_name = ''
             
             for obj in period.objects:
                 u_obj = find_object_by_id(all_uobjects, obj['id'])
@@ -309,8 +350,13 @@ if not config['timetable']:
                         room = u_obj.name
                     elif u_obj.type == 1:
                         class_name = u_obj.name
+                    elif u_obj.type == 2:
+                        teacher_name = u_obj.name
             
-            table_data.append([day_of_week, time_str, subject, room, class_name])
+            if config['name']:
+                table_data.append([day_of_week, time_str, subject, room, class_name])
+            else:
+                table_data.append([day_of_week, time_str, subject, room, teacher_name])
 
             print(tabulate(table_data, headers=headers, tablefmt="grid"))
             found = True
