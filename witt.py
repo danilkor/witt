@@ -2,20 +2,12 @@
 import datetime
 import time
 import argparse
-import browser_cookie3
-import requests
-import requests.cookies
-import pprint
 import pickle
 from utils import *
 from untislib import *
 from enum import Enum
 import os
 import untislib
-
-
-# SOME CLASSES
-
 
 # Handling args
 arg_parser = argparse.ArgumentParser(description='Teacher Finder using data from Webuntis', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -24,7 +16,8 @@ arg_parser = argparse.ArgumentParser(description='Teacher Finder using data from
 arg_parser.add_argument('-c', '--clear-cache', help='Clears current cache', action='store_true')
 arg_parser.add_argument('-t', '--timetable', action='store_true', help='Show timetable instead of current subject')
 arg_parser.add_argument('-r', '--rooms', action='store_true', help='Show the room too (only works with --timetable)')
-arg_parser.add_argument('-l', '--list-teachers', action='store_true', help='See a list of available teachers')
+arg_parser.add_argument('-l', '--list-teachers', action='store_true', help='See a list of available teachers (Only short form)')
+arg_parser.add_argument('-f', '--full', action='store_true', help='Show full names of teachers (Only works with --list-teachers)')
 arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str,
                         choices=[browser.value for browser in Browser],
                         default=Browser.FIREFOX.value)
@@ -36,6 +29,7 @@ config = vars(arg_parser.parse_args())
 if config['clear_cache']:
     os.remove('saved_timetables.pkl')
     os.remove('saved_classen.pkl')
+    os.remove('saved_teacher_full_names.pkl')
 
 if config['date']:
     if not validate_date(config['date']):
@@ -45,11 +39,13 @@ if config['date']:
 
 # ==================================================== MAIN PART ===========================================
 cache_live_time = 3600
-
+teacher_name_live_time = 360 * 24 * 60 # 60 days
 
 # Load data
 timetables = {}
 classen = {}
+teachers = {}
+
 
 cache_updated = False
 # LOAD CLASSES
@@ -97,6 +93,22 @@ if time.time() - timetables['timestamp'] > cache_live_time:
     download_timetables()
     print(f'Loaded {len(timetables['data'])} timetables successfully')
 
+# LOAD TEACHER FULL NAMES
+
+try:
+    with open('saved_teacher_full_names.pkl', 'rb') as f:
+        teachers = pickle.load(f)
+    print(f'Cached {len(teachers['data'])} teacher full names found and loaded')
+    if time.time() - teachers['timestamp'] > teacher_name_live_time:
+        raise Exception('Cache expired')
+except Exception:
+    print('No teacher full names saved. Loading...')
+    teachers['data'] = get_teacher_full_names()
+    teachers['timestamp'] = time.time()
+    cache_updated = True
+    print(f'Loaded {len(teachers['data'])} teacher full names successfully')
+
+
 # Save cache if it was updated
 if cache_updated:
     with open('saved_classen.pkl', 'wb') as f:
@@ -142,12 +154,25 @@ for uo in all_uobjects:
     if uo.type == 2 and uo.name not in teachers_names:
         teacher_list.append(uo)
         teachers_names.append(uo.name)
-if config['list_teachers']:
+if config['list_teachers'] and not config['full']:
     print('Available teachers:')
     for teacher in teacher_list:
         print(teacher.name, end=', ')
     print()
+if config['list_teachers'] and config['full']:
+    print('Available teachers (Full names):')
+    for teacher in teacher_list:
+        full_name = next((t['teacherFullName'] for t in teachers['data'] if f'({teacher.name})' in str(t['teacher'])), None)
+        if full_name:
+            print(f'{teacher.name} - {full_name}')
+        else:
+            print(f'{teacher.name} - No full name found')
+    print()
+    exit(0)
 
+
+
+# Check if name is given
 if not config['name']:
     print('No name given')
     exit(0)
@@ -174,6 +199,8 @@ for period in all_periods:
 # Sort them
 sorted_periods = sorted(found_periods, key=lambda period: (period.date, period.start_time))
 
+
+# Print timetable
 if config['timetable']:
     from tabulate import tabulate
     print(f"Timetable for {config['name']} ({get_week_range(str(all_periods[0].date))})")
@@ -219,6 +246,7 @@ if config['timetable']:
 
     print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
+# print current class
 if not config['timetable']:
     print('The teacher is now: ')
     found = False
