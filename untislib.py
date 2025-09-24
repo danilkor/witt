@@ -112,6 +112,19 @@ def get_timetable_for_week(class_id: int):
     except requests.exceptions.RequestException as e:
         print(f"Request failed: {e}")
         return None
+def get_teacher_full_names():
+    url = f'https://melete.webuntis.com/WebUntis/api/public/officehours/hours?date={date_to_look.replace('-','')}&klasseId=-1'
+    try:
+        response = requests.get(url, cookies=cookies)
+        response.raise_for_status()
+        data = response.json()
+        if 'error' in data:
+            print(data['error']['message'])
+            raise Exception(f"API Error: {data['error']['message']}")
+        return data['data']
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
 def get_untis_objects(timetable) -> list:
     elements = timetable['elements']
     objects = []
