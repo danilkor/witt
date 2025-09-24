@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import datetime
+from fileinput import filename
 import time
 import argparse
 import pickle
@@ -8,6 +9,26 @@ from untislib import *
 from enum import Enum
 import os
 import untislib
+from types import SimpleNamespace
+
+# =================================================== CONFIG =================================================
+# Cache live time in seconds
+cache_live_time = 3600
+teacher_name_live_time = 360 * 24 * 60 # 60 days
+
+# save files 
+cache_directory = os.path.expanduser("~") + "/.cache/witt"
+filenames = SimpleNamespace(
+    timetables=f'{cache_directory}/saved_timetables.pkl',
+    classen=f'{cache_directory}/saved_classes.pkl',
+    teacher_full_names=f'{cache_directory}/saved_teacher_full_names.pkl'
+)
+
+
+
+
+
+
 
 # Handling args
 arg_parser = argparse.ArgumentParser(description='Teacher Finder using data from Webuntis', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -23,13 +44,19 @@ arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str
                         default=Browser.FIREFOX.value)
 arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true. Enter like YYYYMMDD. Notice, that cache will be cleared if this date is not found')
 arg_parser.add_argument('-n', '--name', help='The name of the teacher to search for')
+arg_parser.add_argument('-s', '--super-speed', action='store_true', help='Use this if you want to try fast load. May cause problems')
 config = vars(arg_parser.parse_args())
 # ==================================================== BEFORE START ========================================
+# If config directory does not exist, create it
+if not os.path.exists(cache_directory):
+    os.makedirs(cache_directory)
+
 # clear cache if in config
 if config['clear_cache']:
-    os.remove('saved_timetables.pkl')
-    os.remove('saved_classen.pkl')
-    os.remove('saved_teacher_full_names.pkl')
+    os.remove(filenames.timetables) if os.path.exists(filenames.timetables) else None
+    os.remove(filenames.classen) if os.path.exists(filenames.classen) else None
+    os.remove(filenames.teacher_full_names) if os.path.exists(filenames.teacher_full_names) else None
+    print('Cache cleared')
 
 if config['date']:
     if not validate_date(config['date']):
@@ -38,8 +65,12 @@ if config['date']:
     untislib.date_to_look = f"{config['date'][:4]}-{config['date'][4:6]}-{config['date'][6:8]}"
 
 # ==================================================== MAIN PART ===========================================
-cache_live_time = 3600
-teacher_name_live_time = 360 * 24 * 60 # 60 days
+
+
+
+
+
+
 
 # Load data
 timetables = {}
@@ -50,7 +81,7 @@ teachers = {}
 cache_updated = False
 # LOAD CLASSES
 try:
-    with open('saved_classen.pkl', 'rb') as f:
+    with open(filenames.classen, 'rb') as f:
         classen = pickle.load(f)
     print(f'Cached {len(classen['data'])} classes found and loaded')
 
@@ -61,7 +92,7 @@ except Exception:
     cache_updated = True
     print(f'Loaded {len(classen['data'])} classes successfully')
 if time.time() - classen['timestamp'] > cache_live_time:
-    print('Cache expired')
+    print('Classes cache expired')
     print('Loading new...')
     classen['data'] = get_classes()
     classen['timestamp'] = time.time()
@@ -76,12 +107,13 @@ def download_timetables():
     printProgressBar(0, l, prefix='Progress:', suffix='Complete', length=50)
     for i, c in enumerate(classen['data']):
         timetables['data'][c['id']] = get_timetable_for_week(c['id'])
-        time.sleep(0.06)
+        if not config['super_speed']:
+            time.sleep(0.06)
         printProgressBar(i + 1, l, prefix='Progress:', suffix='Complete', length=50)
     timetables['timestamp'] = time.time()
     cache_updated = True
 try:
-    with open('saved_timetables.pkl', 'rb') as f:
+    with open(filenames.timetables, 'rb') as f:
         timetables = pickle.load(f)
     print(f'Cached {len(timetables['data'])} timetables found and loaded')
 except Exception:
@@ -89,32 +121,38 @@ except Exception:
     download_timetables()
     print(f'Loaded {len(timetables['data'])} timetables successfully')
 if time.time() - timetables['timestamp'] > cache_live_time:
-    print('Cache expired')
+    print('Timetables cache expired')
     download_timetables()
     print(f'Loaded {len(timetables['data'])} timetables successfully')
 
 # LOAD TEACHER FULL NAMES
 
 try:
-    with open('saved_teacher_full_names.pkl', 'rb') as f:
+    with open(filenames.teacher_full_names, 'rb') as f:
         teachers = pickle.load(f)
-    print(f'Cached {len(teachers['data'])} teacher full names found and loaded')
-    if time.time() - teachers['timestamp'] > teacher_name_live_time:
-        raise Exception('Cache expired')
+    print(f'Cached {len(teachers['data'])} teacher full names found `and loaded')
 except Exception:
     print('No teacher full names saved. Loading...')
     teachers['data'] = get_teacher_full_names()
     teachers['timestamp'] = time.time()
     cache_updated = True
     print(f'Loaded {len(teachers['data'])} teacher full names successfully')
-
+if time.time() - teachers['timestamp'] > teacher_name_live_time:
+    print('Teacher full names cache expired')
+    print('Loading new...')
+    teachers['data'] = get_teacher_full_names()
+    teachers['timestamp'] = time.time()
+    cache_updated = True
+    print(f'Loaded {len(teachers['data'])} teacher full names successfully')
 
 # Save cache if it was updated
 if cache_updated:
-    with open('saved_classen.pkl', 'wb') as f:
+    with open(filenames.classen, 'wb') as f:
         pickle.dump(classen, f)
-    with open('saved_timetables.pkl', 'wb') as f:\
+    with open(filenames.timetables, 'wb') as f:\
         pickle.dump(timetables, f)
+    with open(filenames.teacher_full_names, 'wb') as f:
+        pickle.dump(teachers, f)
 
 # PARSE DATA
 
@@ -143,7 +181,7 @@ for period in all_periods:
 if not date_exists:
     print('Date was not found in cache, downloading new one')
     download_timetables()
-    with open('saved_timetables.pkl', 'wb') as f:\
+    with open(filenames.timetables, 'wb') as f:\
         pickle.dump(timetables, f)
     parse_periods_and_uobjects()
 
@@ -170,7 +208,6 @@ if config['list_teachers'] and config['full']:
         else:
             print(f'{teacher.name} - No full name found')
     print()
-    exit(0)
 
 
 
