@@ -1,12 +1,10 @@
 #!/usr/bin/python3
 import datetime
-from fileinput import filename
 import time
 import argparse
 import pickle
 from utils import *
 from untislib import *
-from enum import Enum
 import os
 import untislib
 from types import SimpleNamespace
