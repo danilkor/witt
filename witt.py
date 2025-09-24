@@ -156,12 +156,14 @@ for uo in all_uobjects:
         teachers_names.append(uo.name)
 if config['list_teachers'] and not config['full']:
     print('Available teachers:')
-    for teacher in teacher_list:
+    sorter_teacher_list = sorted(teacher_list, key=lambda x: x.name)
+    for teacher in sorter_teacher_list:
         print(teacher.name, end=', ')
     print()
 if config['list_teachers'] and config['full']:
     print('Available teachers (Full names):')
-    for teacher in teacher_list:
+    sorter_teacher_list = sorted(teacher_list, key=lambda x: x.name)
+    for teacher in sorter_teacher_list:
         full_name = next((t['teacherFullName'] for t in teachers['data'] if f'({teacher.name})' in str(t['teacher'])), None)
         if full_name:
             print(f'{teacher.name} - {full_name}')
