@@ -8,6 +8,7 @@ from untislib import *
 import os
 import untislib
 from types import SimpleNamespace
+import webbrowser
 
 # =================================================== CONFIG =================================================
 # Cache live time in seconds
@@ -62,6 +63,16 @@ if config['date']:
         print('Date must be in format YYYYMMDD')
         exit(1)
     untislib.date_to_look = f"{config['date'][:4]}-{config['date'][4:6]}-{config['date'][6:8]}"
+
+# Check if authenticated
+try:
+    get_classes()
+except Exception as e:
+    print('Not authenticated. Browser will open, please login there, then try again')
+    time.sleep(2)
+    webbrowser.open("https://melete.webuntis.com/WebUntis/?school=htl-hl#/basic/login")
+    exit(1)
+
 
 # ==================================================== MAIN PART ===========================================
 
