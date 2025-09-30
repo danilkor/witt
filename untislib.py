@@ -42,10 +42,11 @@ class UntisObject:
         type_str = type_bindings.get(self.type, 'Unknown')
         return f'{type_str}: {self.name}, {self.longname}'
 class Period:
-    def __init__(self, date, start_time, end_time):
+    def __init__(self, date, start_time, end_time, state):
         self.date = date
         self.start_time = start_time
         self.end_time = end_time
+        self.state = state
         self.objects = []
 
     def add_element(self, element: dict):
@@ -135,7 +136,7 @@ def get_periods(timetable) -> list:
     element_periods = timetable['elementPeriods'][str(timetable['elementIds'][0])]
     periods = []
     for element in element_periods:
-        period = Period(element['date'], element['startTime'], element['endTime'])
+        period = Period(element['date'], element['startTime'], element['endTime'], element['cellState'])
         for e in element['elements']:
             new_element = {
                 'type': e['type'],

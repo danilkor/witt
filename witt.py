@@ -174,7 +174,8 @@ def parse_periods_and_uobjects():
     for current_timetable in timetables['data'].values():
         periods = get_periods(current_timetable)
         for period in periods:
-            all_periods.append(period)
+            if period.state != 'CANCEL':
+                all_periods.append(period)
         untis_objects = get_untis_objects(current_timetable)
         for untis_object in untis_objects:
             all_uobjects.append(untis_object)
