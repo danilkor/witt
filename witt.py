@@ -43,8 +43,8 @@ arg_parser.add_argument('-B', '--browser', help='Browser that you use', type=str
                         default=Browser.FIREFOX.value)
 arg_parser.add_argument('-d', '--date', help='Date to get timetable for. Only works with timetable option true. Enter like YYYYMMDD. Notice, that cache will be cleared if this date is not found')
 arg_parser.add_argument('-n', '--name', help='The name of the teacher to search for')
-arg_parser.add_argument('-cn', '--classname', help='The name of the class to search for')
-arg_parser.add_argument('-s', '--super-speed', action='store_true', help='Use this if you want to try fast load. May cause problems')
+arg_parser.add_argument('-k', '--classname', help='The name of the class to search for')
+arg_parser.add_argument('-s', '--super-speed', action='store_true', help='Disables delay between requests to untis. May cause problems (rate limiting, etc.)')
 config = vars(arg_parser.parse_args())
 # ==================================================== BEFORE START ========================================
 # If config directory does not exist, create it
