@@ -279,10 +279,21 @@ if config['timetable']:
     else:
         print(f"Timetable for {config['classname']} ({get_week_range(str(all_periods[0].date))})")
 
-    time_slots = sorted(list(set((p.start_time, p.end_time) for p in sorted_periods)))
+    time_slots = [
+        (750, 840),
+        (840, 930),
+        (945, 1035),
+        (1035, 1125),
+        (1130, 1220),
+        (1220, 1310),
+        (1310, 1400),
+        (1400, 1450),
+        (1455, 1545),
+        (1545, 1635),
+    ]
 
     days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-    timetable = {f'{str(start)[:-2]}:{str(start)[-2:]} - {str(end)[:-2]}:{str(end)[-2:]}': {day: "" for day in days_of_week} for start, end in time_slots}
+    timetable = {f'{str(start)[:-2]}:{str(start)[-2:]}\n{str(end)[:-2]}:{str(end)[-2:]}': {day: "" for day in days_of_week} for start, end in time_slots}
 
     for period in sorted_periods:
         if config['date'] and config['date'] != str(period.date):
@@ -290,7 +301,7 @@ if config['timetable']:
 
         date_str = str(period.date)
         day_of_week = datetime.strptime(date_str, "%Y%m%d").strftime("%A")
-        time_str = f'{str(period.start_time)[:-2]}:{str(period.start_time)[-2:]} - {str(period.end_time)[:-2]}:{str(period.end_time)[-2:]}'
+        time_str = f'{str(period.start_time)[:-2]}:{str(period.start_time)[-2:]}\n{str(period.end_time)[:-2]}:{str(period.end_time)[-2:]}'
 
         subject = ''
         room = ''
